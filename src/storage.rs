@@ -7,7 +7,7 @@ pub struct Storage {
 
 impl Storage {
     pub fn new() -> Self {
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = Connection::open("clips.db").unwrap();
         conn.execute(
             "CREATE TABLE IF NOT EXISTS clips (
             id INTEGER PRIMARY KEY,
