@@ -19,7 +19,6 @@ fn main() -> eframe::Result {
 
 struct Clipclip {
     status: String,
-    history: String,
     clipboard: Clipboard,
 }
 
@@ -27,7 +26,6 @@ impl Default for Clipclip {
     fn default() -> Self {
         Self {
             status: "".to_string(),
-            history: "".to_string(),
             clipboard: Clipboard::new(),
         }
     }
@@ -43,21 +41,20 @@ impl eframe::App for Clipclip {
                 if ui.button("Down").clicked() {
                     self.status = "Clipclip down".to_string();
                 }
-                if ui.button("Test Read").clicked() {
-                    match self.clipboard.read_latest() {
-                        Ok(it) => self.history = it,
+                if ui.button("Test Load").clicked() {
+                    match self.clipboard.load_all() {
+                        Ok(it) => self.status = it.len().to_string(),
                         Err(e) => self.status = format!("{:?}", e),
                     };
                 }
-                if ui.button("Test Write").clicked() {
-                    match self.clipboard.write_latest() {
-                        Ok(_) => self.status = "Write success".to_string(),
+                if ui.button("Test Save").clicked() {
+                    match self.clipboard.save_latest() {
+                        Ok(_) => self.status = "Save success".to_string(),
                         Err(e) => self.status = format!("{:?}", e),
                     };
                 }
             });
             ui.label(format!("Status: {}", &self.status));
-            ui.label(format!("Clipboard: {}", &self.history));
         });
     }
 }
