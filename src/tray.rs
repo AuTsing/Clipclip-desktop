@@ -1,6 +1,9 @@
 use image::{GenericImageView, load_from_memory};
 use std::error::Error;
-use tray_icon::{Icon, TrayIcon, TrayIconBuilder, menu::Menu};
+use tray_icon::{
+    Icon, TrayIcon, TrayIconBuilder,
+    menu::{Menu, MenuItem},
+};
 
 pub struct Tray {
     tray_icon: TrayIcon,
@@ -9,7 +12,8 @@ pub struct Tray {
 impl Tray {
     pub fn new() -> Self {
         let icon = load_icon().unwrap();
-        let tray_icon = new_icon(icon).unwrap();
+        let menu = new_menu().unwrap();
+        let tray_icon = new_icon(icon, menu).unwrap();
 
         Self { tray_icon }
     }
@@ -26,11 +30,19 @@ fn load_icon() -> Result<Icon, Box<dyn Error>> {
 }
 
 fn new_menu() -> Result<Menu, Box<dyn Error>> {
-    todo!()
+    let menu = Menu::new();
+    let menu_item_exit = MenuItem::new("退出", true, None);
+
+    menu.append(&menu_item_exit)?;
+
+    Ok(menu)
 }
 
-fn new_icon(icon: Icon) -> Result<TrayIcon, Box<dyn Error>> {
-    let tray_icon = TrayIconBuilder::new().with_icon(icon).build()?;
+fn new_icon(icon: Icon, menu: Menu) -> Result<TrayIcon, Box<dyn Error>> {
+    let tray_icon = TrayIconBuilder::new()
+        .with_icon(icon)
+        .with_menu(Box::new(menu))
+        .build()?;
 
     Ok(tray_icon)
 }

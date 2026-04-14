@@ -64,9 +64,9 @@ impl eframe::App for Clipclip {
             ui.label(format!("Status: {}", &self.status));
         });
 
-        if ui.input(|i| i.viewport().close_requested()) {
-            ui.send_viewport_cmd(ViewportCommand::CancelClose);
-            ui.send_viewport_cmd(ViewportCommand::Visible(false));
-        }
+        // if ui.input(|i| i.viewport().close_requested()) {
+        //     ui.send_viewport_cmd(ViewportCommand::CancelClose);
+        //     ui.send_viewport_cmd(ViewportCommand::Visible(false));
+        // }
     }
 }
