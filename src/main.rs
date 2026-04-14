@@ -2,45 +2,75 @@ mod clipboard;
 mod storage;
 mod tray;
 
-use crate::clipboard::Clipboard;
-use crate::tray::Tray;
-use eframe::Renderer;
-use eframe::egui;
-use eframe::egui::ViewportCommand;
+use crate::{clipboard::Clipboard, tray::Tray};
+use eframe::{
+    Renderer, UserEvent,
+    egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
+};
+use std::error::Error;
+use winit::event_loop::EventLoop;
 
-fn main() -> eframe::Result {
+fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         renderer: Renderer::Glow,
         ..Default::default()
     };
-    eframe::run_native(
+
+    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
+
+    let mut app = eframe::create_native(
         "Clipclip",
         options,
-        Box::new(|_cc| Ok(Box::<Clipclip>::default())),
-    )
+        Box::new(|cc| {
+            let clipclip = Clipclip::new(cc.egui_ctx.clone());
+            Ok(Box::new(clipclip))
+        }),
+        &event_loop,
+    );
+
+    event_loop.run_app(&mut app)?;
+
+    Ok(())
 }
 
 struct Clipclip {
     status: String,
+    exited: bool,
     clipboard: Clipboard,
     tray: Tray,
 }
 
-impl Default for Clipclip {
-    fn default() -> Self {
+impl Clipclip {
+    fn new(ctx: Context) -> Self {
         Self {
             status: "".to_string(),
+            exited: false,
             clipboard: Clipboard::new(),
-            tray: Tray::new(),
+            tray: Tray::new(ctx),
         }
     }
 }
 
 impl eframe::App for Clipclip {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        if let Ok(_) = self.tray.on_double_click.try_recv() {
+            ui.send_viewport_cmd(ViewportCommand::Visible(true));
+        }
+
+        if let Ok(_) = self.tray.on_exit.try_recv() {
+            self.exited = true;
+            ui.send_viewport_cmd(ViewportCommand::Close);
+        }
+
+        if ui.input(|i| i.viewport().close_requested() && !self.exited) {
+            ui.send_viewport_cmd(ViewportCommand::CancelClose);
+            ui.send_viewport_cmd(ViewportCommand::Visible(false));
+        }
+
+        CentralPanel::default().show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 if ui.button("Up").clicked() {
                     self.status = "Clipclip up".to_string();
@@ -63,10 +93,5 @@ impl eframe::App for Clipclip {
             });
             ui.label(format!("Status: {}", &self.status));
         });
-
-        // if ui.input(|i| i.viewport().close_requested()) {
-        //     ui.send_viewport_cmd(ViewportCommand::CancelClose);
-        //     ui.send_viewport_cmd(ViewportCommand::Visible(false));
-        // }
     }
 }

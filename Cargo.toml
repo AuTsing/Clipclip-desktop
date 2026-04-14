@@ -13,3 +13,4 @@ image = { version = "0.25.10", default-features = false, features = [
     "jpeg",
     "png",
 ] }
+winit = "0.30.13"

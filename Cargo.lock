@@ -722,6 +722,7 @@ dependencies = [
  "image",
  "rusqlite",
  "tray-icon",
+ "winit",
 ]
 
 [[package]]
