@@ -1,9 +1,12 @@
 mod clipboard;
 mod storage;
+mod tray;
 
 use crate::clipboard::Clipboard;
+use crate::tray::Tray;
 use eframe::Renderer;
 use eframe::egui;
+use eframe::egui::ViewportCommand;
 
 fn main() -> eframe::Result {
     env_logger::init();
@@ -22,6 +25,7 @@ fn main() -> eframe::Result {
 struct Clipclip {
     status: String,
     clipboard: Clipboard,
+    tray: Tray,
 }
 
 impl Default for Clipclip {
@@ -29,6 +33,7 @@ impl Default for Clipclip {
         Self {
             status: "".to_string(),
             clipboard: Clipboard::new(),
+            tray: Tray::new(),
         }
     }
 }
@@ -58,5 +63,10 @@ impl eframe::App for Clipclip {
             });
             ui.label(format!("Status: {}", &self.status));
         });
+
+        if ui.input(|i| i.viewport().close_requested()) {
+            ui.send_viewport_cmd(ViewportCommand::CancelClose);
+            ui.send_viewport_cmd(ViewportCommand::Visible(false));
+        }
     }
 }
