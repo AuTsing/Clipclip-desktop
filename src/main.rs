@@ -5,7 +5,7 @@ mod tray;
 use crate::{clipboard::Clipboard, tray::Tray};
 use eframe::{
     Renderer, UserEvent,
-    egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
+    egui::{CentralPanel, Context, Pos2, Ui, ViewportBuilder, ViewportCommand, pos2},
 };
 use std::error::Error;
 use winit::event_loop::EventLoop;
@@ -14,7 +14,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        viewport: ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: ViewportBuilder::default()
+            .with_inner_size([320.0, 240.0])
+            .with_position(pos2(300.0, 300.0)),
         renderer: Renderer::Glow,
         ..Default::default()
     };
