@@ -5,7 +5,7 @@ mod tray;
 use crate::{clipboard::Clipboard, tray::Tray};
 use eframe::{
     Renderer, UserEvent,
-    egui::{CentralPanel, Context, Pos2, Ui, ViewportBuilder, ViewportCommand, pos2},
+    egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
 };
 use std::error::Error;
 use winit::event_loop::EventLoop;
@@ -14,9 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        viewport: ViewportBuilder::default()
-            .with_inner_size([320.0, 240.0])
-            .with_position(pos2(300.0, 300.0)),
+        viewport: ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         renderer: Renderer::Glow,
         ..Default::default()
     };
@@ -40,7 +38,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Clipclip {
     status: String,
-    exited: bool,
     clipboard: Clipboard,
     tray: Tray,
 }
@@ -49,7 +46,6 @@ impl Clipclip {
     fn new(ctx: Context) -> Self {
         Self {
             status: "".to_string(),
-            exited: false,
             clipboard: Clipboard::new(),
             tray: Tray::new(ctx),
         }
@@ -58,16 +54,8 @@ impl Clipclip {
 
 impl eframe::App for Clipclip {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        if let Ok(_) = self.tray.on_double_click.try_recv() {
-            ui.send_viewport_cmd(ViewportCommand::Visible(true));
-        }
-
-        if let Ok(_) = self.tray.on_exit.try_recv() {
-            self.exited = true;
-            ui.send_viewport_cmd(ViewportCommand::Close);
-        }
-
-        if ui.input(|i| i.viewport().close_requested() && !self.exited) {
+        if ui.input(|i| i.viewport().close_requested()) && self.tray.on_exiting.try_recv().is_err()
+        {
             ui.send_viewport_cmd(ViewportCommand::CancelClose);
             ui.send_viewport_cmd(ViewportCommand::Visible(false));
         }

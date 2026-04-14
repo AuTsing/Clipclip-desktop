@@ -1,8 +1,8 @@
-use eframe::egui::Context;
+use eframe::egui::{Context, ViewportCommand};
 use image::{GenericImageView, load_from_memory};
 use std::{
     error::Error,
-    sync::mpsc::{Receiver, channel},
+    sync::mpsc::{Receiver, Sender, channel},
 };
 use tray_icon::{
     Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent,
@@ -11,8 +11,7 @@ use tray_icon::{
 
 pub struct Tray {
     _tray_icon: TrayIcon,
-    pub on_double_click: Receiver<()>,
-    pub on_exit: Receiver<()>,
+    pub on_exiting: Receiver<()>,
 }
 
 impl Tray {
@@ -25,15 +24,13 @@ impl Tray {
         let _tray_icon = new_icon(icon, menu).unwrap();
         _tray_icon.set_show_menu_on_left_click(false);
 
-        let (double_click, on_double_click) = channel::<()>();
-        let (exit, on_exit) = channel::<()>();
+        let (exiting, on_exiting) = channel();
 
         let event_ctx = ctx.clone();
         TrayIconEvent::set_event_handler(Some(move |ev| match ev {
             TrayIconEvent::DoubleClick { button, .. } => {
                 if button == MouseButton::Left {
-                    let _ = double_click.send(());
-                    event_ctx.request_repaint();
+                    handle_double_click(&event_ctx);
                 }
             }
             _ => {}
@@ -42,15 +39,13 @@ impl Tray {
         let event_ctx = ctx.clone();
         MenuEvent::set_event_handler(Some(move |ev: MenuEvent| {
             if ev.id() == &on_exit_id {
-                let _ = exit.send(());
-                event_ctx.request_repaint();
+                handle_exit(&event_ctx, exiting.clone());
             };
         }));
 
         Self {
             _tray_icon,
-            on_double_click,
-            on_exit,
+            on_exiting,
         }
     }
 }
@@ -86,4 +81,19 @@ fn new_icon(icon: Icon, menu: Menu) -> Result<TrayIcon, Box<dyn Error>> {
         .build()?;
 
     Ok(tray_icon)
+}
+
+fn handle_double_click(ctx: &Context) {
+    ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+    if ctx.input(|i| i.viewport().minimized.unwrap_or(false)) {
+        ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
+    }
+    if !ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
+        ctx.send_viewport_cmd(ViewportCommand::Focus);
+    }
+}
+
+fn handle_exit(ctx: &Context, exiting: Sender<()>) {
+    let _ = exiting.send(());
+    ctx.send_viewport_cmd(ViewportCommand::Close);
 }
