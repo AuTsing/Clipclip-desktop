@@ -74,12 +74,6 @@ impl eframe::App for Clipclip {
                         Err(e) => self.status = format!("{:?}", e),
                     };
                 }
-                if ui.button("Test Save").clicked() {
-                    match self.clipboard.save_latest() {
-                        Ok(_) => self.status = "Save success".to_string(),
-                        Err(e) => self.status = format!("{:?}", e),
-                    };
-                }
             });
             ui.label(format!("Status: {}", &self.status));
         });
