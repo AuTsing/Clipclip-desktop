@@ -9,12 +9,6 @@ pub struct Clipboard {
     arclipboard: Arc<Mutex<arboard::Clipboard>>,
 }
 
-pub struct Clip {
-    pub id: i64,
-    pub content: String,
-    pub created_at: i64,
-}
-
 impl Clipboard {
     pub fn new() -> Self {
         let arclipboard = Arc::new(Mutex::new(arboard::Clipboard::new().unwrap()));

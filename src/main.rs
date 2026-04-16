@@ -8,10 +8,7 @@ use eframe::{
     Renderer, UserEvent,
     egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
 };
-use std::{
-    error::Error,
-    sync::{Arc, Mutex, mpsc::channel},
-};
+use std::{error::Error, sync::mpsc::channel};
 use winit::event_loop::EventLoop;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -84,7 +81,12 @@ impl eframe::App for Clipclip {
                 if ui.button("Down").clicked() {
                     self.status = "Clipclip down".to_string();
                 }
-                if ui.button("Test Load").clicked() {}
+                if ui.button("Load").clicked() {
+                    match self.storage.get_all_clips() {
+                        Ok(it) => self.status = it.len().to_string(),
+                        Err(e) => self.status = format!("{:?}", e),
+                    };
+                }
             });
             ui.label(format!("Status: {}", &self.status));
         });

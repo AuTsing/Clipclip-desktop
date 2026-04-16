@@ -1,6 +1,6 @@
-use crate::clipboard::Clip;
 use rusqlite::Connection;
 use std::{
+    error::Error,
     sync::{Arc, Mutex, mpsc::Receiver},
     thread::{self, JoinHandle},
 };
@@ -53,6 +53,12 @@ impl Sqlc {
     }
 }
 
+pub struct Clip {
+    pub id: i64,
+    pub content: String,
+    pub created_at: i64,
+}
+
 pub struct Storage {
     saving_clip_handle: Option<JoinHandle<()>>,
     last_clip: Arc<Mutex<String>>,
@@ -84,5 +90,18 @@ impl Storage {
                 *last_clip.lock().unwrap() = clip;
             }
         }));
+    }
+
+    pub fn get_all_clips(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        let clips = self
+            .sqlc
+            .lock()
+            .unwrap()
+            .query(100)?
+            .into_iter()
+            .map(|it| it.content)
+            .collect::<Vec<String>>();
+
+        Ok(clips)
     }
 }
