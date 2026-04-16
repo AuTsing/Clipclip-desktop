@@ -8,7 +8,9 @@ use std::{
 };
 
 pub struct Clipboard {
-    save_latest_running_handle: Option<JoinHandle<()>>,
+    listening_clip_change_handle: Option<JoinHandle<()>>,
+    listening_set_clip_handle: Option<JoinHandle<()>>,
+    listening_get_clip_handle: Option<JoinHandle<()>>,
     arclipboard: Arc<Mutex<arboard::Clipboard>>,
 }
 
@@ -17,23 +19,35 @@ impl Clipboard {
         let arclipboard = Arc::new(Mutex::new(arboard::Clipboard::new().unwrap()));
 
         Self {
-            save_latest_running_handle: None,
+            listening_clip_change_handle: None,
+            listening_set_clip_handle: None,
+            listening_get_clip_handle: None,
             arclipboard,
         }
     }
 
     pub fn start_listening_clip_change(&mut self, save_clip_tx: Sender<String>) {
         let arclipboard = self.arclipboard.clone();
-        self.save_latest_running_handle = Some(thread::spawn(move || {
+        self.listening_clip_change_handle = Some(thread::spawn(move || {
             let listener = Listener::new(save_clip_tx, arclipboard);
             let mut master = Master::new(listener).unwrap();
             master.run().unwrap();
         }));
     }
 
+    pub fn start_listening_set_clip(&mut self, set_clip_rx: Receiver<String>) {
+        let arclipboard = self.arclipboard.clone();
+        self.listening_set_clip_handle = Some(thread::spawn(move || {
+            loop {
+                let clip = set_clip_rx.recv().unwrap();
+                arclipboard.lock().unwrap().set_text(clip).unwrap();
+            }
+        }));
+    }
+
     pub fn start_listening_get_clip(&mut self, get_clip_rx: Receiver<Sender<String>>) {
         let arclipboard = self.arclipboard.clone();
-        self.save_latest_running_handle = Some(thread::spawn(move || {
+        self.listening_get_clip_handle = Some(thread::spawn(move || {
             loop {
                 let tx = get_clip_rx.recv().unwrap();
                 let clip = arclipboard.lock().unwrap().get_text().unwrap();

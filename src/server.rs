@@ -21,6 +21,7 @@ impl Server {
     pub fn start_listening(
         &mut self,
         save_clip_tx: Sender<String>,
+        set_clip_tx: Sender<String>,
         get_clip_tx: Sender<Sender<String>>,
     ) {
         self.listening_handle = Some(thread::spawn(move || {
@@ -34,9 +35,13 @@ impl Server {
                     }
                 };
 
-                let response_message =
-                    Server::to_response_message(&mut req, &save_clip_tx, &get_clip_tx)
-                        .unwrap_or_else(|e| ResponseMessage::failed(e));
+                let response_message = Server::to_response_message(
+                    &mut req,
+                    &save_clip_tx,
+                    &set_clip_tx,
+                    &get_clip_tx,
+                )
+                .unwrap_or_else(|e| ResponseMessage::failed(e));
 
                 if let Err(_) = Server::response(req, &response_message) {
                     // TODO(Log err)
@@ -49,6 +54,7 @@ impl Server {
     fn to_response_message(
         req: &mut Request,
         save_clip_tx: &Sender<String>,
+        set_clip_tx: &Sender<String>,
         get_clip_tx: &Sender<Sender<String>>,
     ) -> Result<ResponseMessage> {
         let req_message = RequestMessage::from_request(req)?;
@@ -56,7 +62,8 @@ impl Server {
             RequestMessage::Upload { data } => {
                 match data {
                     RequestMessageUploadData::Text { content } => {
-                        save_clip_tx.send(content)?;
+                        save_clip_tx.send(content.clone())?;
+                        set_clip_tx.send(content.clone())?;
                     }
                 }
                 ResponseMessage::upload_success()

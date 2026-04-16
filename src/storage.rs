@@ -48,7 +48,7 @@ impl Sqlc {
 }
 
 pub struct Storage {
-    saving_clip_handle: Option<JoinHandle<()>>,
+    listening_save_clip_handle: Option<JoinHandle<()>>,
     last_clip: Arc<Mutex<String>>,
     sqlc: Arc<Mutex<Sqlc>>,
 }
@@ -59,7 +59,7 @@ impl Storage {
         let sqlc = Arc::new(Mutex::new(Sqlc::new()));
 
         Self {
-            saving_clip_handle: None,
+            listening_save_clip_handle: None,
             last_clip,
             sqlc,
         }
@@ -68,7 +68,7 @@ impl Storage {
     pub fn start_listening_save_clip(&mut self, save_clip_rx: Receiver<String>) {
         let last_clip = self.last_clip.clone();
         let sqlc = self.sqlc.clone();
-        self.saving_clip_handle = Some(thread::spawn(move || {
+        self.listening_save_clip_handle = Some(thread::spawn(move || {
             loop {
                 let clip = save_clip_rx.recv().unwrap();
                 if clip == *last_clip.lock().unwrap() {

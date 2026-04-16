@@ -31,6 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(|cc| {
             let ctx = cc.egui_ctx.clone();
             let (save_clip_tx, save_clip_rx) = channel::<String>();
+            let (set_clip_tx, set_clip_rx) = channel::<String>();
             let (get_clip_tx, get_clip_rx) = channel::<Sender<String>>();
 
             let mut storage = Storage::new();
@@ -38,10 +39,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let mut clipboard = Clipboard::new();
             clipboard.start_listening_clip_change(save_clip_tx.clone());
+            clipboard.start_listening_set_clip(set_clip_rx);
             clipboard.start_listening_get_clip(get_clip_rx);
 
             let mut server = Server::new();
-            server.start_listening(save_clip_tx.clone(), get_clip_tx.clone());
+            server.start_listening(
+                save_clip_tx.clone(),
+                set_clip_tx.clone(),
+                get_clip_tx.clone(),
+            );
 
             let clipclip = Clipclip::new(ctx, storage, clipboard, server);
 
