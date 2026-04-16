@@ -1,6 +1,9 @@
 use clipboard_master::{CallbackResult, ClipboardHandler, Master};
 use std::{
-    sync::{Arc, Mutex, mpsc::Sender},
+    sync::{
+        Arc, Mutex,
+        mpsc::{Receiver, Sender},
+    },
     thread::{self, JoinHandle},
 };
 
@@ -19,12 +22,23 @@ impl Clipboard {
         }
     }
 
-    pub fn start_listening_clip_change(&mut self, save_latest_tx: Sender<String>) {
+    pub fn start_listening_clip_change(&mut self, save_clip_tx: Sender<String>) {
         let arclipboard = self.arclipboard.clone();
         self.save_latest_running_handle = Some(thread::spawn(move || {
-            let listener = Listener::new(save_latest_tx, arclipboard);
+            let listener = Listener::new(save_clip_tx, arclipboard);
             let mut master = Master::new(listener).unwrap();
             master.run().unwrap();
+        }));
+    }
+
+    pub fn start_listening_get_clip(&mut self, get_clip_rx: Receiver<Sender<String>>) {
+        let arclipboard = self.arclipboard.clone();
+        self.save_latest_running_handle = Some(thread::spawn(move || {
+            loop {
+                let tx = get_clip_rx.recv().unwrap();
+                let clip = arclipboard.lock().unwrap().get_text().unwrap();
+                tx.send(clip).unwrap();
+            }
         }));
     }
 }

@@ -741,6 +741,7 @@ dependencies = [
 name = "clipclip-desktop"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arboard",
  "clipboard-master",
  "eframe",

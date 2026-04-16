@@ -3,12 +3,15 @@ mod server;
 mod storage;
 mod tray;
 
-use crate::{clipboard::Clipboard, storage::Storage, tray::Tray};
+use crate::{clipboard::Clipboard, server::Server, storage::Storage, tray::Tray};
 use eframe::{
     Renderer, UserEvent,
     egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
 };
-use std::{error::Error, sync::mpsc::channel};
+use std::{
+    error::Error,
+    sync::mpsc::{Sender, channel},
+};
 use winit::event_loop::EventLoop;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -28,14 +31,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(|cc| {
             let ctx = cc.egui_ctx.clone();
             let (save_clip_tx, save_clip_rx) = channel::<String>();
+            let (get_clip_tx, get_clip_rx) = channel::<Sender<String>>();
 
             let mut storage = Storage::new();
-            storage.start_saving_clip(save_clip_rx);
+            storage.start_listening_save_clip(save_clip_rx);
 
             let mut clipboard = Clipboard::new();
             clipboard.start_listening_clip_change(save_clip_tx.clone());
+            clipboard.start_listening_get_clip(get_clip_rx);
 
-            let clipclip = Clipclip::new(ctx, storage, clipboard);
+            let mut server = Server::new();
+            server.start_listening(save_clip_tx.clone(), get_clip_tx.clone());
+
+            let clipclip = Clipclip::new(ctx, storage, clipboard, server);
 
             Ok(Box::new(clipclip))
         }),
@@ -51,16 +59,18 @@ struct Clipclip {
     status: String,
     tray: Tray,
     storage: Storage,
-    clipboard: Clipboard,
+    _clipboard: Clipboard,
+    _server: Server,
 }
 
 impl Clipclip {
-    fn new(ctx: Context, storage: Storage, clipboard: Clipboard) -> Self {
+    fn new(ctx: Context, storage: Storage, clipboard: Clipboard, server: Server) -> Self {
         Self {
             status: "".to_string(),
             tray: Tray::new(ctx),
             storage,
-            clipboard,
+            _clipboard: clipboard,
+            _server: server,
         }
     }
 }

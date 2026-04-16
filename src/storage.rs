@@ -77,7 +77,7 @@ impl Storage {
         }
     }
 
-    pub fn start_saving_clip(&mut self, save_clip_rx: Receiver<String>) {
+    pub fn start_listening_save_clip(&mut self, save_clip_rx: Receiver<String>) {
         let last_clip = self.last_clip.clone();
         let sqlc = self.sqlc.clone();
         self.saving_clip_handle = Some(thread::spawn(move || {
