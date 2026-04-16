@@ -1,13 +1,17 @@
 mod clipboard;
+mod server;
 mod storage;
 mod tray;
 
-use crate::{clipboard::Clipboard, tray::Tray};
+use crate::{clipboard::Clipboard, storage::Storage, tray::Tray};
 use eframe::{
     Renderer, UserEvent,
     egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
 };
-use std::error::Error;
+use std::{
+    error::Error,
+    sync::{Arc, Mutex, mpsc::channel},
+};
 use winit::event_loop::EventLoop;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -25,7 +29,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         "Clipclip",
         options,
         Box::new(|cc| {
-            let clipclip = Clipclip::new(cc.egui_ctx.clone());
+            let ctx = cc.egui_ctx.clone();
+            let (save_clip_tx, save_clip_rx) = channel::<String>();
+
+            let mut storage = Storage::new();
+            storage.start_saving_clip(save_clip_rx);
+
+            let mut clipboard = Clipboard::new();
+            clipboard.start_listening_clip_change(save_clip_tx.clone());
+
+            let clipclip = Clipclip::new(ctx, storage, clipboard);
+
             Ok(Box::new(clipclip))
         }),
         &event_loop,
@@ -38,16 +52,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Clipclip {
     status: String,
-    clipboard: Clipboard,
     tray: Tray,
+    storage: Storage,
+    clipboard: Clipboard,
 }
 
 impl Clipclip {
-    fn new(ctx: Context) -> Self {
+    fn new(ctx: Context, storage: Storage, clipboard: Clipboard) -> Self {
         Self {
             status: "".to_string(),
-            clipboard: Clipboard::new(),
             tray: Tray::new(ctx),
+            storage,
+            clipboard,
         }
     }
 }
@@ -68,12 +84,7 @@ impl eframe::App for Clipclip {
                 if ui.button("Down").clicked() {
                     self.status = "Clipclip down".to_string();
                 }
-                if ui.button("Test Load").clicked() {
-                    match self.clipboard.load_all() {
-                        Ok(it) => self.status = it.len().to_string(),
-                        Err(e) => self.status = format!("{:?}", e),
-                    };
-                }
+                if ui.button("Test Load").clicked() {}
             });
             ui.label(format!("Status: {}", &self.status));
         });

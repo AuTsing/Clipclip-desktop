@@ -1,11 +1,15 @@
 use crate::clipboard::Clip;
 use rusqlite::Connection;
+use std::{
+    sync::{Arc, Mutex, mpsc::Receiver},
+    thread::{self, JoinHandle},
+};
 
-pub struct Storage {
+pub struct Sqlc {
     conn: Connection,
 }
 
-impl Storage {
+impl Sqlc {
     pub fn new() -> Self {
         let conn = Connection::open("clips.db").unwrap();
         conn.execute(
@@ -46,5 +50,39 @@ impl Storage {
         let clips = rows_iter.collect::<Result<Vec<Clip>, rusqlite::Error>>()?;
 
         Ok(clips)
+    }
+}
+
+pub struct Storage {
+    saving_clip_handle: Option<JoinHandle<()>>,
+    last_clip: Arc<Mutex<String>>,
+    sqlc: Arc<Mutex<Sqlc>>,
+}
+
+impl Storage {
+    pub fn new() -> Self {
+        let last_clip = Arc::new(Mutex::new("".to_string()));
+        let sqlc = Arc::new(Mutex::new(Sqlc::new()));
+
+        Self {
+            saving_clip_handle: None,
+            last_clip,
+            sqlc,
+        }
+    }
+
+    pub fn start_saving_clip(&mut self, save_clip_rx: Receiver<String>) {
+        let last_clip = self.last_clip.clone();
+        let sqlc = self.sqlc.clone();
+        self.saving_clip_handle = Some(thread::spawn(move || {
+            loop {
+                let clip = save_clip_rx.recv().unwrap();
+                if clip == *last_clip.lock().unwrap() {
+                    continue;
+                }
+                sqlc.lock().unwrap().insert(&clip).unwrap();
+                *last_clip.lock().unwrap() = clip;
+            }
+        }));
     }
 }
