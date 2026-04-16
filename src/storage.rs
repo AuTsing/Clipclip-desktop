@@ -36,27 +36,15 @@ impl Sqlc {
         Ok(())
     }
 
-    pub fn query(&self, limit: i64) -> Result<Vec<Clip>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, content, created_at FROM clips ORDER BY created_at DESC LIMIT ?1",
-        )?;
-        let rows_iter = stmt.query_map([limit], |row| {
-            Ok(Clip {
-                id: row.get(0)?,
-                content: row.get(1)?,
-                created_at: row.get(2)?,
-            })
-        })?;
-        let clips = rows_iter.collect::<Result<Vec<Clip>, rusqlite::Error>>()?;
+    pub fn query(&self, limit: i64) -> Result<Vec<String>, rusqlite::Error> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT content FROM clips ORDER BY created_at DESC LIMIT ?1")?;
+        let rows_iter = stmt.query_map([limit], |row| Ok(row.get(0)?))?;
+        let clips = rows_iter.collect::<Result<Vec<String>, rusqlite::Error>>()?;
 
         Ok(clips)
     }
-}
-
-pub struct Clip {
-    pub id: i64,
-    pub content: String,
-    pub created_at: i64,
 }
 
 pub struct Storage {
@@ -93,14 +81,7 @@ impl Storage {
     }
 
     pub fn get_all_clips(&self) -> Result<Vec<String>, Box<dyn Error>> {
-        let clips = self
-            .sqlc
-            .lock()
-            .unwrap()
-            .query(100)?
-            .into_iter()
-            .map(|it| it.content)
-            .collect::<Vec<String>>();
+        let clips = self.sqlc.lock().unwrap().query(100)?;
 
         Ok(clips)
     }
