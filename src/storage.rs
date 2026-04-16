@@ -32,6 +32,12 @@ impl Sqlc {
                 [text],
             )
             .unwrap();
+        self.conn
+            .execute(
+                "DELETE FROM clips WHERE id NOT IN (SELECT id FROM clips ORDER BY id DESC LIMIT 100)",
+                [],
+            )
+            .unwrap();
 
         Ok(())
     }
@@ -39,7 +45,7 @@ impl Sqlc {
     pub fn query(&self, limit: i64) -> Result<Vec<String>, rusqlite::Error> {
         let mut stmt = self
             .conn
-            .prepare("SELECT content FROM clips ORDER BY created_at DESC LIMIT ?1")?;
+            .prepare("SELECT content FROM clips ORDER BY id DESC LIMIT ?1")?;
         let rows_iter = stmt.query_map([limit], |row| Ok(row.get(0)?))?;
         let clips = rows_iter.collect::<Result<Vec<String>, rusqlite::Error>>()?;
 
