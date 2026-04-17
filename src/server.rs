@@ -2,18 +2,23 @@ use anyhow::{Error, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use std::{
+    net::UdpSocket,
     sync::mpsc::{Sender, channel},
     thread::{self, JoinHandle},
 };
 use tiny_http::{Header, Request, Response};
 
 pub struct Server {
+    port: String,
+    pub addr: String,
     listening_handle: Option<JoinHandle<()>>,
 }
 
 impl Server {
     pub fn new() -> Self {
         Self {
+            port: "8090".to_string(),
+            addr: "".to_string(),
             listening_handle: None,
         }
     }
@@ -23,8 +28,10 @@ impl Server {
         set_clip_tx: Sender<String>,
         get_clip_tx: Sender<Sender<String>>,
     ) {
+        let port = self.port.clone();
+        self.addr = format!("{}:{}", Server::get_ip().unwrap_or_default(), port);
         self.listening_handle = Some(thread::spawn(move || {
-            let server = match tiny_http::Server::http("0.0.0.0:8090") {
+            let server = match tiny_http::Server::http(format!("0.0.0.0:{}", port)) {
                 Ok(it) => it,
                 Err(_) => {
                     // TODO(Log err)
@@ -91,6 +98,14 @@ impl Server {
         req.respond(resp)?;
 
         Ok(())
+    }
+
+    fn get_ip() -> Result<String> {
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.connect("8.8.8.8:80")?;
+        let ip = socket.local_addr()?.ip().to_string();
+
+        Ok(ip)
     }
 }
 

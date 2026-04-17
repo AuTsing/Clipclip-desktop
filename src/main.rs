@@ -118,7 +118,7 @@ struct Clipclip {
     _tray: Tray,
     _storage: Storage,
     _clipboard: Clipboard,
-    _server: Server,
+    server: Server,
 }
 
 impl Clipclip {
@@ -137,7 +137,7 @@ impl Clipclip {
             _tray: tray,
             _storage: storage,
             _clipboard: clipboard,
-            _server: server,
+            server: server,
         }
     }
 }
@@ -154,6 +154,7 @@ impl eframe::App for Clipclip {
         }
 
         CentralPanel::default().show_inside(ui, |ui| {
+            ui.label(format!("Addr: {}", &self.server.addr));
             ui.label(format!("Status: {}", &self.status));
             if ui.button("Load all clips").clicked() {}
         });
