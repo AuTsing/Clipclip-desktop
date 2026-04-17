@@ -4,20 +4,28 @@ mod storage;
 mod tray;
 
 use crate::{clipboard::Clipboard, server::Server, storage::Storage, tray::Tray};
+use anyhow::{Result, anyhow};
 use eframe::{
-    Renderer, UserEvent,
-    egui::{CentralPanel, Ui, ViewportBuilder, ViewportCommand},
+    NativeOptions, Renderer, UserEvent, create_native,
+    egui::{
+        CentralPanel, FontData, FontDefinitions, FontFamily, Ui, ViewportBuilder, ViewportCommand,
+    },
 };
 use std::{
     error::Error,
-    sync::mpsc::{Receiver, Sender, channel},
+    fs::read,
+    sync::{
+        Arc,
+        mpsc::{Receiver, Sender, channel},
+    },
 };
+use system_fonts::{FontStyle, FoundFontSource, find_for_system_locale};
 use winit::event_loop::EventLoop;
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let options = eframe::NativeOptions {
+    let options = NativeOptions {
         viewport: ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         renderer: Renderer::Glow,
         ..Default::default()
@@ -25,11 +33,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
 
-    let mut app = eframe::create_native(
+    let mut app = create_native(
         "Clipclip",
         options,
         Box::new(|cc| {
             let ctx = cc.egui_ctx.clone();
+
+            if let Ok(font_definitions) = gen_font_definitions() {
+                ctx.set_fonts(font_definitions);
+            }
+
             let (save_clip_tx, save_clip_rx) = channel::<String>();
             let (set_clip_tx, set_clip_rx) = channel::<String>();
             let (get_clip_tx, get_clip_rx) = channel::<Sender<String>>();
@@ -66,6 +79,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     event_loop.run_app(&mut app)?;
 
     Ok(())
+}
+
+fn gen_font_definitions() -> Result<FontDefinitions> {
+    let (_, _, found_fonts) = find_for_system_locale(FontStyle::Sans);
+    let default_font = found_fonts.first().ok_or(anyhow!("Not found font"))?;
+    let font_path = match &default_font.source {
+        FoundFontSource::Path(it) => it,
+        _ => return Err(anyhow!("Not found font")),
+    };
+    let font_bytes = read(font_path)?;
+    let mut fonts = FontDefinitions::default();
+
+    fonts.font_data.insert(
+        "default".to_owned(),
+        Arc::new(FontData::from_owned(font_bytes)),
+    );
+
+    fonts
+        .families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .insert(0, "default".to_owned());
+
+    fonts
+        .families
+        .entry(FontFamily::Monospace)
+        .or_default()
+        .push("default".to_owned());
+
+    Ok(fonts)
 }
 
 struct Clipclip {
