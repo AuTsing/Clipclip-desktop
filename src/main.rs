@@ -34,26 +34,29 @@ fn main() -> Result<(), Box<dyn Error>> {
             let (set_clip_tx, set_clip_rx) = channel::<String>();
             let (get_clip_tx, get_clip_rx) = channel::<Sender<String>>();
             let (exited_tx, exited_rx) = channel::<()>();
+            let (copied_tx, copied_rx) = channel::<String>();
 
             let mut storage = Storage::new();
             storage.start_listening_save_clip(save_clip_rx);
 
             let mut clipboard = Clipboard::new();
-            clipboard.start_listening_clip_change(save_clip_tx.clone());
+            clipboard.start_listening_clip_change(
+                ctx.clone(),
+                save_clip_tx.clone(),
+                copied_tx.clone(),
+            );
             clipboard.start_listening_set_clip(set_clip_rx);
             clipboard.start_listening_get_clip(get_clip_rx);
 
             let mut server = Server::new();
-            server.start_listening(
-                save_clip_tx.clone(),
-                set_clip_tx.clone(),
-                get_clip_tx.clone(),
-            );
+            server.start_listening(set_clip_tx.clone(), get_clip_tx.clone());
 
             let tray = Tray::new();
             tray.start_listening_events(ctx, exited_tx);
 
-            let clipclip = Clipclip::new(exited_rx, tray, storage, clipboard, server);
+            let mut clipclip =
+                Clipclip::new(exited_rx, copied_rx, tray, storage, clipboard, server);
+            clipclip.status = "Service running".to_string();
 
             Ok(Box::new(clipclip))
         }),
@@ -68,8 +71,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 struct Clipclip {
     status: String,
     exited_rx: Receiver<()>,
+    copied_rx: Receiver<String>,
     _tray: Tray,
-    storage: Storage,
+    _storage: Storage,
     _clipboard: Clipboard,
     _server: Server,
 }
@@ -77,6 +81,7 @@ struct Clipclip {
 impl Clipclip {
     fn new(
         exited_rx: Receiver<()>,
+        copied_rx: Receiver<String>,
         tray: Tray,
         storage: Storage,
         clipboard: Clipboard,
@@ -85,8 +90,9 @@ impl Clipclip {
         Self {
             status: "".to_string(),
             exited_rx,
+            copied_rx,
             _tray: tray,
-            storage,
+            _storage: storage,
             _clipboard: clipboard,
             _server: server,
         }
@@ -100,22 +106,13 @@ impl eframe::App for Clipclip {
             ui.send_viewport_cmd(ViewportCommand::Visible(false));
         }
 
+        if let Ok(clip) = self.copied_rx.try_recv() {
+            self.status = clip;
+        }
+
         CentralPanel::default().show_inside(ui, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Up").clicked() {
-                    self.status = "Clipclip up".to_string();
-                }
-                if ui.button("Down").clicked() {
-                    self.status = "Clipclip down".to_string();
-                }
-                if ui.button("Load").clicked() {
-                    match self.storage.get_all_clips() {
-                        Ok(it) => self.status = it.len().to_string(),
-                        Err(e) => self.status = format!("{:?}", e),
-                    };
-                }
-            });
             ui.label(format!("Status: {}", &self.status));
+            if ui.button("Load all clips").clicked() {}
         });
     }
 }

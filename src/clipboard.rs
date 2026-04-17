@@ -1,4 +1,5 @@
 use clipboard_master::{CallbackResult, ClipboardHandler, Master};
+use eframe::egui::Context;
 use std::{
     sync::{
         Arc, Mutex,
@@ -26,10 +27,15 @@ impl Clipboard {
         }
     }
 
-    pub fn start_listening_clip_change(&mut self, save_clip_tx: Sender<String>) {
+    pub fn start_listening_clip_change(
+        &mut self,
+        ctx: Context,
+        save_clip_tx: Sender<String>,
+        copied_tx: Sender<String>,
+    ) {
         let arclipboard = self.arclipboard.clone();
         self.listening_clip_change_handle = Some(thread::spawn(move || {
-            let listener = Listener::new(save_clip_tx, arclipboard);
+            let listener = Listener::new(ctx, arclipboard, save_clip_tx, copied_tx);
 
             let mut master = match Master::new(listener) {
                 Ok(it) => it,
@@ -112,15 +118,24 @@ impl Clipboard {
 }
 
 struct Listener {
-    save_latest_tx: Sender<String>,
+    ctx: Context,
     arclipboard: Arc<Mutex<arboard::Clipboard>>,
+    save_clip_tx: Sender<String>,
+    copied_tx: Sender<String>,
 }
 
 impl Listener {
-    fn new(save_latest_tx: Sender<String>, arclipboard: Arc<Mutex<arboard::Clipboard>>) -> Self {
+    fn new(
+        ctx: Context,
+        arclipboard: Arc<Mutex<arboard::Clipboard>>,
+        save_clip_tx: Sender<String>,
+        copied_tx: Sender<String>,
+    ) -> Self {
         Self {
-            save_latest_tx,
+            ctx,
             arclipboard,
+            save_clip_tx,
+            copied_tx,
         }
     }
 }
@@ -143,9 +158,15 @@ impl ClipboardHandler for Listener {
             }
         };
 
-        if let Err(_) = self.save_latest_tx.send(clip) {
+        if let Err(_) = self.save_clip_tx.send(clip.clone()) {
             // TODO(Log err)
         }
+
+        if let Err(_) = self.copied_tx.send(clip) {
+            // TODO(Log err)
+        }
+
+        self.ctx.request_repaint();
 
         CallbackResult::Next
     }
