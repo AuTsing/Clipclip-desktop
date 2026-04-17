@@ -6,11 +6,11 @@ mod tray;
 use crate::{clipboard::Clipboard, server::Server, storage::Storage, tray::Tray};
 use eframe::{
     Renderer, UserEvent,
-    egui::{CentralPanel, Context, Ui, ViewportBuilder, ViewportCommand},
+    egui::{CentralPanel, Ui, ViewportBuilder, ViewportCommand},
 };
 use std::{
     error::Error,
-    sync::mpsc::{Sender, channel},
+    sync::mpsc::{Receiver, Sender, channel},
 };
 use winit::event_loop::EventLoop;
 
@@ -33,6 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let (save_clip_tx, save_clip_rx) = channel::<String>();
             let (set_clip_tx, set_clip_rx) = channel::<String>();
             let (get_clip_tx, get_clip_rx) = channel::<Sender<String>>();
+            let (exited_tx, exited_rx) = channel::<()>();
 
             let mut storage = Storage::new();
             storage.start_listening_save_clip(save_clip_rx);
@@ -49,7 +50,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 get_clip_tx.clone(),
             );
 
-            let clipclip = Clipclip::new(ctx, storage, clipboard, server);
+            let tray = Tray::new();
+            tray.start_listening_events(ctx, exited_tx);
+
+            let clipclip = Clipclip::new(exited_rx, tray, storage, clipboard, server);
 
             Ok(Box::new(clipclip))
         }),
@@ -63,17 +67,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Clipclip {
     status: String,
-    tray: Tray,
+    exited_rx: Receiver<()>,
+    _tray: Tray,
     storage: Storage,
     _clipboard: Clipboard,
     _server: Server,
 }
 
 impl Clipclip {
-    fn new(ctx: Context, storage: Storage, clipboard: Clipboard, server: Server) -> Self {
+    fn new(
+        exited_rx: Receiver<()>,
+        tray: Tray,
+        storage: Storage,
+        clipboard: Clipboard,
+        server: Server,
+    ) -> Self {
         Self {
             status: "".to_string(),
-            tray: Tray::new(ctx),
+            exited_rx,
+            _tray: tray,
             storage,
             _clipboard: clipboard,
             _server: server,
@@ -83,8 +95,7 @@ impl Clipclip {
 
 impl eframe::App for Clipclip {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        if ui.input(|i| i.viewport().close_requested()) && self.tray.on_exiting.try_recv().is_err()
-        {
+        if ui.input(|i| i.viewport().close_requested()) && self.exited_rx.try_recv().is_err() {
             ui.send_viewport_cmd(ViewportCommand::CancelClose);
             ui.send_viewport_cmd(ViewportCommand::Visible(false));
         }

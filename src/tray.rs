@@ -1,52 +1,57 @@
 use eframe::egui::{Context, ViewportCommand};
 use image::{GenericImageView, load_from_memory};
-use std::{
-    error::Error,
-    sync::mpsc::{Receiver, Sender, channel},
-};
+use std::{error::Error, sync::mpsc::Sender};
 use tray_icon::{
     Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent,
-    menu::{Menu, MenuEvent, MenuItem},
+    menu::{Menu, MenuEvent, MenuId, MenuItem},
 };
 
 pub struct Tray {
     _tray_icon: TrayIcon,
-    pub on_exiting: Receiver<()>,
+    on_exit_id: MenuId,
 }
 
 impl Tray {
-    pub fn new(ctx: Context) -> Self {
+    pub fn new() -> Self {
         let icon = load_icon().unwrap();
         let on_exit_menu_item = new_menu_item("退出");
         let on_exit_id = on_exit_menu_item.id().clone();
         let menu = new_menu(&vec![on_exit_menu_item]).unwrap();
 
-        let _tray_icon = new_icon(icon, menu).unwrap();
-        _tray_icon.set_show_menu_on_left_click(false);
+        let tray_icon = new_icon(icon, menu).unwrap();
+        tray_icon.set_show_menu_on_left_click(false);
 
-        let (exiting, on_exiting) = channel();
+        Self {
+            _tray_icon: tray_icon,
+            on_exit_id,
+        }
+    }
 
+    pub fn start_listening_events(&self, ctx: Context, exited_tx: Sender<()>) {
         let event_ctx = ctx.clone();
         TrayIconEvent::set_event_handler(Some(move |ev| match ev {
             TrayIconEvent::DoubleClick { button, .. } => {
                 if button == MouseButton::Left {
-                    handle_double_click(&event_ctx);
+                    event_ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+                    if event_ctx.input(|i| i.viewport().minimized.unwrap_or(false)) {
+                        event_ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
+                    }
+                    if !event_ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
+                        event_ctx.send_viewport_cmd(ViewportCommand::Focus);
+                    }
                 }
             }
             _ => {}
         }));
 
         let event_ctx = ctx.clone();
+        let on_exited_id = self.on_exit_id.clone();
         MenuEvent::set_event_handler(Some(move |ev: MenuEvent| {
-            if ev.id() == &on_exit_id {
-                handle_exit(&event_ctx, exiting.clone());
+            if ev.id() == &on_exited_id {
+                let _ = exited_tx.send(());
+                event_ctx.send_viewport_cmd(ViewportCommand::Close);
             };
         }));
-
-        Self {
-            _tray_icon,
-            on_exiting,
-        }
     }
 }
 
@@ -81,19 +86,4 @@ fn new_icon(icon: Icon, menu: Menu) -> Result<TrayIcon, Box<dyn Error>> {
         .build()?;
 
     Ok(tray_icon)
-}
-
-fn handle_double_click(ctx: &Context) {
-    ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-    if ctx.input(|i| i.viewport().minimized.unwrap_or(false)) {
-        ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
-    }
-    if !ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
-        ctx.send_viewport_cmd(ViewportCommand::Focus);
-    }
-}
-
-fn handle_exit(ctx: &Context, exiting: Sender<()>) {
-    let _ = exiting.send(());
-    ctx.send_viewport_cmd(ViewportCommand::Close);
 }

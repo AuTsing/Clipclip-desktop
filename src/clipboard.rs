@@ -30,8 +30,19 @@ impl Clipboard {
         let arclipboard = self.arclipboard.clone();
         self.listening_clip_change_handle = Some(thread::spawn(move || {
             let listener = Listener::new(save_clip_tx, arclipboard);
-            let mut master = Master::new(listener).unwrap();
-            master.run().unwrap();
+
+            let mut master = match Master::new(listener) {
+                Ok(it) => it,
+                Err(_) => {
+                    // TODO(Log err)
+                    return;
+                }
+            };
+
+            if let Err(_) = master.run() {
+                // TODO(Log err)
+                return;
+            }
         }));
     }
 
@@ -39,8 +50,26 @@ impl Clipboard {
         let arclipboard = self.arclipboard.clone();
         self.listening_set_clip_handle = Some(thread::spawn(move || {
             loop {
-                let clip = set_clip_rx.recv().unwrap();
-                arclipboard.lock().unwrap().set_text(clip).unwrap();
+                let clip = match set_clip_rx.recv() {
+                    Ok(it) => it,
+                    Err(_) => {
+                        // TODO(Log err)
+                        continue;
+                    }
+                };
+
+                let mut arclipboard_guard = match arclipboard.lock() {
+                    Ok(it) => it,
+                    Err(_) => {
+                        // TODO(Log err)
+                        continue;
+                    }
+                };
+
+                if let Err(_) = arclipboard_guard.set_text(clip) {
+                    // TODO(Log err)
+                    continue;
+                }
             }
         }));
     }
@@ -49,9 +78,34 @@ impl Clipboard {
         let arclipboard = self.arclipboard.clone();
         self.listening_get_clip_handle = Some(thread::spawn(move || {
             loop {
-                let tx = get_clip_rx.recv().unwrap();
-                let clip = arclipboard.lock().unwrap().get_text().unwrap();
-                tx.send(clip).unwrap();
+                let tx = match get_clip_rx.recv() {
+                    Ok(it) => it,
+                    Err(_) => {
+                        // TODO(Log err)
+                        continue;
+                    }
+                };
+
+                let mut arclipboard_guard = match arclipboard.lock() {
+                    Ok(it) => it,
+                    Err(_) => {
+                        // TODO(Log err)
+                        continue;
+                    }
+                };
+
+                let clip = match arclipboard_guard.get_text() {
+                    Ok(it) => it,
+                    Err(_) => {
+                        // TODO(Log err)
+                        continue;
+                    }
+                };
+
+                if let Err(_) = tx.send(clip) {
+                    // TODO(Log err)
+                    continue;
+                }
             }
         }));
     }
@@ -73,8 +127,26 @@ impl Listener {
 
 impl ClipboardHandler for Listener {
     fn on_clipboard_change(&mut self) -> CallbackResult {
-        let clip = self.arclipboard.lock().unwrap().get_text().unwrap();
-        self.save_latest_tx.send(clip).unwrap();
+        let mut arclipboard_guard = match self.arclipboard.lock() {
+            Ok(it) => it,
+            Err(_) => {
+                // TODO(Log err)
+                return CallbackResult::Next;
+            }
+        };
+
+        let clip = match arclipboard_guard.get_text() {
+            Ok(it) => it,
+            Err(_) => {
+                // TODO(Log err)
+                return CallbackResult::Next;
+            }
+        };
+
+        if let Err(_) = self.save_latest_tx.send(clip) {
+            // TODO(Log err)
+        }
+
         CallbackResult::Next
     }
 }

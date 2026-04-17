@@ -25,7 +25,13 @@ impl Server {
         get_clip_tx: Sender<Sender<String>>,
     ) {
         self.listening_handle = Some(thread::spawn(move || {
-            let server = tiny_http::Server::http("0.0.0.0:8090").unwrap();
+            let server = match tiny_http::Server::http("0.0.0.0:8090") {
+                Ok(it) => it,
+                Err(_) => {
+                    // TODO(Log err)
+                    return;
+                }
+            };
             loop {
                 let mut req = match server.recv() {
                     Ok(it) => it,
@@ -80,7 +86,7 @@ impl Server {
     }
 
     fn response(req: Request, response_message: &ResponseMessage) -> Result<()> {
-        let resp_message_json = to_string(response_message).unwrap_or("".to_string());
+        let resp_message_json = to_string(response_message).unwrap_or_default();
         let resp = Response::from_string(resp_message_json).with_header(Header {
             field: "Content-Type"
                 .parse()
