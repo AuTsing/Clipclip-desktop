@@ -50,8 +50,12 @@ impl Clipclip {
         event_loop.exit();
     }
 
-    fn handle_save_clip(&self, clip: String) {
-        println!("handle_save_clip: {}", clip);
+    fn handle_save_clip(&mut self, clip: String) {
+        if let Some(storage) = &mut self.storage {
+            if let Err(_) = storage.save_clip(clip) {
+                // TODO(Log Err)
+            }
+        }
     }
 }
 
@@ -75,6 +79,9 @@ impl ApplicationHandler<UserEvent> for Clipclip {
             let mut clipboard = Clipboard::new();
             clipboard.start_listening_clip_change(self.proxy.clone());
             self.clipboard = Some(clipboard);
+
+            let storage = Storage::new();
+            self.storage = Some(storage);
         }
     }
 

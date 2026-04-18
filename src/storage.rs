@@ -1,9 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use rusqlite::Connection;
-use std::{
-    sync::{Arc, Mutex, mpsc::Receiver},
-    thread::{self, JoinHandle},
-};
 
 pub struct Sqlc {
     conn: Connection,
@@ -50,61 +46,31 @@ impl Sqlc {
 }
 
 pub struct Storage {
-    listening_save_clip_handle: Option<JoinHandle<()>>,
-    last_clip: Arc<Mutex<String>>,
-    sqlc: Arc<Mutex<Sqlc>>,
+    sqlc: Sqlc,
+    last_clip: String,
 }
 
 impl Storage {
     pub fn new() -> Self {
-        let last_clip = Arc::new(Mutex::new("".to_string()));
-        let sqlc = Arc::new(Mutex::new(Sqlc::new()));
+        let sqlc = Sqlc::new();
+        let last_clip = "".to_string();
 
-        Self {
-            listening_save_clip_handle: None,
-            last_clip,
-            sqlc,
-        }
+        Self { sqlc, last_clip }
     }
 
-    pub fn start_listening_save_clip(&mut self, save_clip_rx: Receiver<String>) {
-        let last_clip = self.last_clip.clone();
-        let sqlc = self.sqlc.clone();
-        self.listening_save_clip_handle = Some(thread::spawn(move || {
-            loop {
-                let clip = match save_clip_rx.recv() {
-                    Ok(it) => it,
-                    Err(_) => {
-                        // TODO(Log err)
-                        continue;
-                    }
-                };
-                let mut last_chip_guard = match last_clip.lock() {
-                    Ok(it) => it,
-                    Err(e) => e.into_inner(),
-                };
-                if clip == *last_chip_guard {
-                    continue;
-                }
-                let sqlc_guard = match sqlc.lock() {
-                    Ok(it) => it,
-                    Err(_) => {
-                        // TODO(Log err)
-                        continue;
-                    }
-                };
-                if let Err(_) = sqlc_guard.insert(&clip) {
-                    // TODO(Log err)
-                    continue;
-                }
-                *last_chip_guard = clip;
-            }
-        }));
+    pub fn save_clip(&mut self, clip: String) -> Result<()> {
+        if clip == self.last_clip {
+            return Ok(());
+        }
+
+        self.sqlc.insert(&clip)?;
+        self.last_clip = clip;
+
+        Ok(())
     }
 
     pub fn get_all_clips(&self) -> Result<Vec<String>> {
-        let sqlc_guard = self.sqlc.lock().map_err(|_| anyhow!("Got poison sqlc"))?;
-        let clips = sqlc_guard.query(100)?;
+        let clips = self.sqlc.query(100)?;
 
         Ok(clips)
     }
