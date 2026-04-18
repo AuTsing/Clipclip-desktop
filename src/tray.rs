@@ -1,55 +1,39 @@
-use eframe::egui::{Context, ViewportCommand};
+use crate::UserEvent;
+use anyhow::Result;
 use image::{GenericImageView, load_from_memory};
-use std::{error::Error, sync::mpsc::Sender};
+use std::error::Error;
 use tray_icon::{
-    Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent,
+    Icon, TrayIcon, TrayIconBuilder,
     menu::{Menu, MenuEvent, MenuId, MenuItem},
 };
+use winit::event_loop::EventLoopProxy;
 
 pub struct Tray {
     _tray_icon: TrayIcon,
-    on_exit_id: MenuId,
+    menu_id_exit: MenuId,
 }
 
 impl Tray {
     pub fn new() -> Self {
         let icon = load_icon().unwrap();
-        let on_exit_menu_item = new_menu_item("退出");
-        let on_exit_id = on_exit_menu_item.id().clone();
-        let menu = new_menu(&vec![on_exit_menu_item]).unwrap();
+        let menu_item = new_menu_item("退出");
+        let menu_id_exit = menu_item.id().clone();
+        let menu = new_menu(&vec![menu_item]).unwrap();
 
         let tray_icon = new_icon(icon, menu).unwrap();
         tray_icon.set_show_menu_on_left_click(false);
 
         Self {
             _tray_icon: tray_icon,
-            on_exit_id,
+            menu_id_exit,
         }
     }
 
-    pub fn start_listening_events(&self, ctx: Context, exited_tx: Sender<()>) {
-        let event_ctx = ctx.clone();
-        TrayIconEvent::set_event_handler(Some(move |ev| match ev {
-            TrayIconEvent::DoubleClick { button, .. } => {
-                if button == MouseButton::Left {
-                    event_ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-                    if event_ctx.input(|i| i.viewport().minimized.unwrap_or(false)) {
-                        event_ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
-                    }
-                    if !event_ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
-                        event_ctx.send_viewport_cmd(ViewportCommand::Focus);
-                    }
-                }
-            }
-            _ => {}
-        }));
-
-        let event_ctx = ctx.clone();
-        let on_exited_id = self.on_exit_id.clone();
+    pub fn start_listening_events(&self, proxy: EventLoopProxy<UserEvent>) {
+        let menu_id_exit = self.menu_id_exit.clone();
         MenuEvent::set_event_handler(Some(move |ev: MenuEvent| {
-            if ev.id() == &on_exited_id {
-                let _ = exited_tx.send(());
-                event_ctx.send_viewport_cmd(ViewportCommand::Close);
+            if ev.id() == &menu_id_exit {
+                let _ = proxy.send_event(UserEvent::Exit);
             };
         }));
     }
