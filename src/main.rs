@@ -25,13 +25,14 @@ fn main() -> Result<()> {
 struct Clipclip {
     proxy: EventLoopProxy<UserEvent>,
     tray: Option<Tray>,
-    storage: Option<Storage>,
     clipboard: Option<Clipboard>,
+    storage: Option<Storage>,
     server: Option<Server>,
 }
 
 enum UserEvent {
     Exit,
+    SaveClip(String),
 }
 
 impl Clipclip {
@@ -39,10 +40,18 @@ impl Clipclip {
         Self {
             proxy,
             tray: None,
-            storage: None,
             clipboard: None,
+            storage: None,
             server: None,
         }
+    }
+
+    fn handle_exit(event_loop: &ActiveEventLoop) {
+        event_loop.exit();
+    }
+
+    fn handle_save_clip(&self, clip: String) {
+        println!("handle_save_clip: {}", clip);
     }
 }
 
@@ -57,17 +66,22 @@ impl ApplicationHandler<UserEvent> for Clipclip {
     ) {
     }
 
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
         if cause == StartCause::Init {
             let tray = Tray::new();
             tray.start_listening_events(self.proxy.clone());
             self.tray = Some(tray);
+
+            let mut clipboard = Clipboard::new();
+            clipboard.start_listening_clip_change(self.proxy.clone());
+            self.clipboard = Some(clipboard);
         }
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
-            UserEvent::Exit => event_loop.exit(),
+            UserEvent::Exit => Clipclip::handle_exit(event_loop),
+            UserEvent::SaveClip(clip) => self.handle_save_clip(clip),
         };
     }
 }
