@@ -72,10 +72,12 @@ fn new_menu(menu_items: Vec<&MenuItem>) -> Result<Menu, Box<dyn Error>> {
 }
 
 fn new_icon(icon: Icon, menu: Menu) -> Result<TrayIcon, Box<dyn Error>> {
+    let version = env!("CARGO_PKG_VERSION");
+    let title = format!("Clipclip v{}", version);
     let tray_icon = TrayIconBuilder::new()
         .with_icon(icon)
-        .with_title("Clipclip")
-        .with_tooltip("Clipclip")
+        .with_title(&title)
+        .with_tooltip(&title)
         .with_menu(Box::new(menu))
         .build()?;
 
