@@ -1,5 +1,6 @@
 use crate::UserEvent;
 use anyhow::{Error, Result, anyhow};
+use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use std::{
@@ -30,16 +31,16 @@ impl Server {
         self.listening_request_handle = Some(thread::spawn(move || {
             let server = match tiny_http::Server::http(format!("0.0.0.0:{}", port)) {
                 Ok(it) => it,
-                Err(_) => {
-                    // TODO(Log err)
+                Err(e) => {
+                    error!("{:?}", e);
                     return;
                 }
             };
             loop {
                 let mut req = match server.recv() {
                     Ok(it) => it,
-                    Err(_) => {
-                        // TODO(Log err)
+                    Err(e) => {
+                        error!("{:?}", e);
                         continue;
                     }
                 };
@@ -47,8 +48,8 @@ impl Server {
                 let response_message = Server::to_response_message(&mut req, &proxy)
                     .unwrap_or_else(|e| ResponseMessage::failed(e));
 
-                if let Err(_) = Server::response(req, &response_message) {
-                    // TODO(Log err)
+                if let Err(e) = Server::response(req, &response_message) {
+                    error!("{:?}", e);
                     continue;
                 }
             }

@@ -5,7 +5,10 @@ mod tray;
 
 use crate::{clipboard::Clipboard, server::Server, storage::Storage, tray::Tray};
 use anyhow::Result;
+use log::{error, info};
+use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use std::sync::mpsc::Sender;
+use tempfile::Builder;
 use winit::{
     application::ApplicationHandler,
     event::{StartCause, WindowEvent},
@@ -14,11 +17,25 @@ use winit::{
 };
 
 fn main() -> Result<()> {
+    setup_logger()?;
+
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
 
     let proxy = event_loop.create_proxy();
     let mut clipclip = Clipclip::new(proxy);
     event_loop.run_app(&mut clipclip)?;
+
+    Ok(())
+}
+
+fn setup_logger() -> Result<()> {
+    let config = ConfigBuilder::new().set_time_format_rfc3339().build();
+    let log_file = Builder::new()
+        .disable_cleanup(true)
+        .prefix("clipclip_")
+        .suffix(".log")
+        .tempfile()?;
+    WriteLogger::init(LevelFilter::Info, config, log_file)?;
 
     Ok(())
 }
@@ -59,8 +76,8 @@ impl Clipclip {
             .storage
             .as_mut()
             .expect("Storage has not been initialized");
-        if let Err(_) = storage.save_clip(clip) {
-            // TODO(Log Err)
+        if let Err(e) = storage.save_clip(clip) {
+            error!("{:?}", e);
         }
     }
 
@@ -69,8 +86,8 @@ impl Clipclip {
             .clipboard
             .as_ref()
             .expect("Clipboard has not been initialized");
-        if let Err(_) = clipboard.set_clip(clip) {
-            // TODO(Log Err)
+        if let Err(e) = clipboard.set_clip(clip) {
+            error!("{:?}", e);
         }
     }
 
@@ -79,13 +96,13 @@ impl Clipclip {
             .clipboard
             .as_ref()
             .expect("Clipboard has not been initialized");
-        if let Err(_) = sender.send(clipboard.get_clip()) {
-            // TODO(Log Err)
+        if let Err(e) = sender.send(clipboard.get_clip()) {
+            error!("{:?}", e);
         }
     }
 
     fn handle_update_addr(&self, addr: String) {
-        println!("handle_update_addr: {}", addr);
+        info!("handle_update_addr: {}", addr);
     }
 }
 

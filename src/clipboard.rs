@@ -1,6 +1,7 @@
 use crate::UserEvent;
 use anyhow::{Result, anyhow};
 use clipboard_master::{CallbackResult, ClipboardHandler, Master};
+use log::error;
 use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
@@ -29,14 +30,15 @@ impl Clipboard {
 
             let mut master = match Master::new(listener) {
                 Ok(it) => it,
-                Err(_) => {
-                    // TODO(Log err)
+                Err(e) => {
+                    error!("{:?}", e);
+
                     return;
                 }
             };
 
-            if let Err(_) = master.run() {
-                // TODO(Log err)
+            if let Err(e) = master.run() {
+                error!("{:?}", e);
                 return;
             }
         }));
@@ -78,16 +80,16 @@ impl ClipboardHandler for Listener {
     fn on_clipboard_change(&mut self) -> CallbackResult {
         let mut arclipboard_guard = match self.arclipboard.lock() {
             Ok(it) => it,
-            Err(_) => {
-                // TODO(Log err)
+            Err(e) => {
+                error!("{:?}", e);
                 return CallbackResult::Next;
             }
         };
 
         let clip = match arclipboard_guard.get_text() {
             Ok(it) => it,
-            Err(_) => {
-                // TODO(Log err)
+            Err(e) => {
+                error!("{:?}", e);
                 return CallbackResult::Next;
             }
         };
