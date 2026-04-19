@@ -5,7 +5,7 @@ mod tray;
 
 use crate::{clipboard::Clipboard, server::Server, storage::Storage, tray::Tray};
 use anyhow::Result;
-use log::{error, info};
+use log::error;
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use std::sync::mpsc::Sender;
 use tempfile::Builder;
@@ -101,8 +101,12 @@ impl Clipclip {
         }
     }
 
-    fn handle_update_addr(&self, addr: String) {
-        info!("handle_update_addr: {}", addr);
+    fn handle_update_addr(&mut self, addr: String) {
+        let tray = self.tray.as_mut().expect("Tray has not been initialized");
+        let text = format!("服务: http://{}", addr);
+        if let Err(e) = tray.set_server_text(text) {
+            error!("{:?}", e);
+        }
     }
 }
 

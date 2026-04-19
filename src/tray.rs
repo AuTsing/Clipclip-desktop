@@ -4,38 +4,46 @@ use image::{GenericImageView, load_from_memory};
 use std::error::Error;
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
-    menu::{Menu, MenuEvent, MenuId, MenuItem},
+    menu::{Menu, MenuEvent, MenuItem},
 };
 use winit::event_loop::EventLoopProxy;
 
 pub struct Tray {
     _tray_icon: TrayIcon,
-    menu_id_exit: MenuId,
+    menu_item_server: MenuItem,
+    menu_item_exit: MenuItem,
 }
 
 impl Tray {
     pub fn new() -> Self {
         let icon = load_icon().unwrap();
-        let menu_item = new_menu_item("退出");
-        let menu_id_exit = menu_item.id().clone();
-        let menu = new_menu(&vec![menu_item]).unwrap();
+        let menu_item_server = new_menu_item("服务: 未运行");
+        let menu_item_exit = new_menu_item("退出");
+        let menu = new_menu(vec![&menu_item_server, &menu_item_exit]).unwrap();
 
         let tray_icon = new_icon(icon, menu).unwrap();
         tray_icon.set_show_menu_on_left_click(false);
 
         Self {
             _tray_icon: tray_icon,
-            menu_id_exit,
+            menu_item_server,
+            menu_item_exit,
         }
     }
 
     pub fn start_listening_events(&self, proxy: EventLoopProxy<UserEvent>) {
-        let menu_id_exit = self.menu_id_exit.clone();
+        let menu_id_exit = self.menu_item_exit.id().clone();
         MenuEvent::set_event_handler(Some(move |ev: MenuEvent| {
             if ev.id() == &menu_id_exit {
                 let _ = proxy.send_event(UserEvent::Exit);
             };
         }));
+    }
+
+    pub fn set_server_text(&mut self, text: String) -> Result<()> {
+        self.menu_item_server.set_text(&text);
+
+        Ok(())
     }
 }
 
@@ -53,7 +61,7 @@ fn new_menu_item(text: &str) -> MenuItem {
     MenuItem::new(text, true, None)
 }
 
-fn new_menu(menu_items: &Vec<MenuItem>) -> Result<Menu, Box<dyn Error>> {
+fn new_menu(menu_items: Vec<&MenuItem>) -> Result<Menu, Box<dyn Error>> {
     let menu = Menu::new();
 
     for it in menu_items {
@@ -66,6 +74,8 @@ fn new_menu(menu_items: &Vec<MenuItem>) -> Result<Menu, Box<dyn Error>> {
 fn new_icon(icon: Icon, menu: Menu) -> Result<TrayIcon, Box<dyn Error>> {
     let tray_icon = TrayIconBuilder::new()
         .with_icon(icon)
+        .with_title("Clipclip")
+        .with_tooltip("Clipclip")
         .with_menu(Box::new(menu))
         .build()?;
 

@@ -32,7 +32,6 @@ impl Clipboard {
                 Ok(it) => it,
                 Err(e) => {
                     error!("{:?}", e);
-
                     return;
                 }
             };

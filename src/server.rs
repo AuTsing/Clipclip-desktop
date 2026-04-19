@@ -26,7 +26,7 @@ impl Server {
 
     pub fn start_listening_request(&mut self, proxy: EventLoopProxy<UserEvent>) {
         let port = self.port.clone();
-        let addr = format!("{}:{}", Server::get_ip().unwrap_or_default(), port);
+        let addr = format!("{}:{}", get_ip().unwrap_or_default(), port);
         let _ = proxy.send_event(UserEvent::UpdateAddr(addr));
         self.listening_request_handle = Some(thread::spawn(move || {
             let server = match tiny_http::Server::http(format!("0.0.0.0:{}", port)) {
@@ -45,68 +45,68 @@ impl Server {
                     }
                 };
 
-                let response_message = Server::to_response_message(&mut req, &proxy)
+                let response_message = to_response_message(&mut req, &proxy)
                     .unwrap_or_else(|e| ResponseMessage::failed(e));
 
-                if let Err(e) = Server::response(req, &response_message) {
+                if let Err(e) = response(req, &response_message) {
                     error!("{:?}", e);
                     continue;
                 }
             }
         }));
     }
+}
 
-    fn to_response_message(
-        req: &mut Request,
-        proxy: &EventLoopProxy<UserEvent>,
-    ) -> Result<ResponseMessage> {
-        let req_message = RequestMessage::from_request(req)?;
-        let resp_message = match req_message {
-            RequestMessage::Upload { data } => {
-                match data {
-                    RequestMessageUploadData::Text { content } => {
-                        proxy
-                            .send_event(UserEvent::RecvClip(content))
-                            .map_err(|_| anyhow!("Event loop closed"))?;
-                    }
+fn to_response_message(
+    req: &mut Request,
+    proxy: &EventLoopProxy<UserEvent>,
+) -> Result<ResponseMessage> {
+    let req_message = RequestMessage::from_request(req)?;
+    let resp_message = match req_message {
+        RequestMessage::Upload { data } => {
+            match data {
+                RequestMessageUploadData::Text { content } => {
+                    proxy
+                        .send_event(UserEvent::RecvClip(content))
+                        .map_err(|_| anyhow!("Event loop closed"))?;
                 }
-                ResponseMessage::upload_success()
             }
-            RequestMessage::Download {} => {
-                let (get_clip_result_tx, get_clip_result_rx) = channel();
-                proxy
-                    .send_event(UserEvent::SendClip(get_clip_result_tx))
-                    .map_err(|_| anyhow!("Event loop closed"))?;
-                let clip = get_clip_result_rx.recv()??;
-                ResponseMessage::download_success(clip)
-            }
-        };
+            ResponseMessage::upload_success()
+        }
+        RequestMessage::Download {} => {
+            let (get_clip_result_tx, get_clip_result_rx) = channel();
+            proxy
+                .send_event(UserEvent::SendClip(get_clip_result_tx))
+                .map_err(|_| anyhow!("Event loop closed"))?;
+            let clip = get_clip_result_rx.recv()??;
+            ResponseMessage::download_success(clip)
+        }
+    };
 
-        Ok(resp_message)
-    }
+    Ok(resp_message)
+}
 
-    fn response(req: Request, response_message: &ResponseMessage) -> Result<()> {
-        let resp_message_json = to_string(response_message).unwrap_or_default();
-        let resp = Response::from_string(resp_message_json).with_header(Header {
-            field: "Content-Type"
-                .parse()
-                .map_err(|_| anyhow!("Parse header failed"))?,
-            value: "application/json"
-                .parse()
-                .map_err(|_| anyhow!("Parse header failed"))?,
-        });
-        req.respond(resp)?;
+fn response(req: Request, response_message: &ResponseMessage) -> Result<()> {
+    let resp_message_json = to_string(response_message).unwrap_or_default();
+    let resp = Response::from_string(resp_message_json).with_header(Header {
+        field: "Content-Type"
+            .parse()
+            .map_err(|_| anyhow!("Parse header failed"))?,
+        value: "application/json"
+            .parse()
+            .map_err(|_| anyhow!("Parse header failed"))?,
+    });
+    req.respond(resp)?;
 
-        Ok(())
-    }
+    Ok(())
+}
 
-    fn get_ip() -> Result<String> {
-        let socket = UdpSocket::bind("0.0.0.0:0")?;
-        socket.connect("8.8.8.8:80")?;
-        let ip = socket.local_addr()?.ip().to_string();
+fn get_ip() -> Result<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    socket.connect("8.8.8.8:80")?;
+    let ip = socket.local_addr()?.ip().to_string();
 
-        Ok(ip)
-    }
+    Ok(ip)
 }
 
 enum RequestMessage {
