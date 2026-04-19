@@ -1,0 +1,45 @@
+name: release
+
+on:
+    push:
+        tags:
+            - 'v*'
+
+jobs:
+    build:
+        runs-on: windows-2022
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup rust
+              uses: dsherret/rust-toolchain-file@v1
+
+            - name: Build
+              run: |
+                  cargo build --release --locked
+
+            - name: Zip
+              shell: pwsh
+              run: |
+                  Compress-Archive -CompressionLevel Optimal -Force -Path target/release/clipclip-desktop.exe -DestinationPath target/release/Clipclip.zip
+
+            - name: Read version
+              id: read_version
+              run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+            - name: Read changelog
+              id: read_changelog
+              uses: mindsers/changelog-reader-action@v2
+              with:
+                  version: ${{ steps.read_version.outputs.version }}
+
+            - name: Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  draft: false
+                  files: target/release/Clipclip.zip
+                  body: |
+                      ## ${{ steps.read_changelog.outputs.version }} - ${{ steps.read_changelog.outputs.date }}  
+
+                      ${{ steps.read_changelog.outputs.changes }}
