@@ -1,4 +1,5 @@
 use crate::UserEvent;
+use anyhow::{Result, anyhow};
 use clipboard_master::{CallbackResult, ClipboardHandler, Master};
 use std::{
     sync::{Arc, Mutex},
@@ -39,6 +40,26 @@ impl Clipboard {
                 return;
             }
         }));
+    }
+
+    pub fn get_clip(&self) -> Result<String> {
+        let mut arclipboard_guard = self
+            .arclipboard
+            .lock()
+            .map_err(|_| anyhow!("Poison error"))?;
+        let clip = arclipboard_guard.get_text()?;
+
+        Ok(clip)
+    }
+
+    pub fn set_clip(&self, clip: String) -> Result<()> {
+        let mut arclipboard_guard = self
+            .arclipboard
+            .lock()
+            .map_err(|_| anyhow!("Poison error"))?;
+        arclipboard_guard.set_text(clip)?;
+
+        Ok(())
     }
 }
 

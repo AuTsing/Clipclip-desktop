@@ -1,36 +1,33 @@
+use crate::UserEvent;
 use anyhow::{Error, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use std::{
     net::UdpSocket,
-    sync::mpsc::{Sender, channel},
+    sync::mpsc::channel,
     thread::{self, JoinHandle},
 };
 use tiny_http::{Header, Request, Response};
+use winit::event_loop::EventLoopProxy;
 
 pub struct Server {
+    listening_request_handle: Option<JoinHandle<()>>,
     port: String,
-    pub addr: String,
-    listening_handle: Option<JoinHandle<()>>,
 }
 
 impl Server {
     pub fn new() -> Self {
         Self {
+            listening_request_handle: None,
             port: "8090".to_string(),
-            addr: "".to_string(),
-            listening_handle: None,
         }
     }
 
-    pub fn start_listening(
-        &mut self,
-        set_clip_tx: Sender<String>,
-        get_clip_tx: Sender<Sender<String>>,
-    ) {
+    pub fn start_listening_request(&mut self, proxy: EventLoopProxy<UserEvent>) {
         let port = self.port.clone();
-        self.addr = format!("{}:{}", Server::get_ip().unwrap_or_default(), port);
-        self.listening_handle = Some(thread::spawn(move || {
+        let addr = format!("{}:{}", Server::get_ip().unwrap_or_default(), port);
+        let _ = proxy.send_event(UserEvent::UpdateAddr(addr));
+        self.listening_request_handle = Some(thread::spawn(move || {
             let server = match tiny_http::Server::http(format!("0.0.0.0:{}", port)) {
                 Ok(it) => it,
                 Err(_) => {
@@ -47,9 +44,8 @@ impl Server {
                     }
                 };
 
-                let response_message =
-                    Server::to_response_message(&mut req, &set_clip_tx, &get_clip_tx)
-                        .unwrap_or_else(|e| ResponseMessage::failed(e));
+                let response_message = Server::to_response_message(&mut req, &proxy)
+                    .unwrap_or_else(|e| ResponseMessage::failed(e));
 
                 if let Err(_) = Server::response(req, &response_message) {
                     // TODO(Log err)
@@ -61,23 +57,26 @@ impl Server {
 
     fn to_response_message(
         req: &mut Request,
-        set_clip_tx: &Sender<String>,
-        get_clip_tx: &Sender<Sender<String>>,
+        proxy: &EventLoopProxy<UserEvent>,
     ) -> Result<ResponseMessage> {
         let req_message = RequestMessage::from_request(req)?;
         let resp_message = match req_message {
             RequestMessage::Upload { data } => {
                 match data {
                     RequestMessageUploadData::Text { content } => {
-                        set_clip_tx.send(content.clone())?;
+                        proxy
+                            .send_event(UserEvent::RecvClip(content))
+                            .map_err(|_| anyhow!("Event loop closed"))?;
                     }
                 }
                 ResponseMessage::upload_success()
             }
             RequestMessage::Download {} => {
                 let (get_clip_result_tx, get_clip_result_rx) = channel();
-                get_clip_tx.send(get_clip_result_tx)?;
-                let clip = get_clip_result_rx.recv()?;
+                proxy
+                    .send_event(UserEvent::SendClip(get_clip_result_tx))
+                    .map_err(|_| anyhow!("Event loop closed"))?;
+                let clip = get_clip_result_rx.recv()??;
                 ResponseMessage::download_success(clip)
             }
         };

@@ -5,6 +5,7 @@ mod tray;
 
 use crate::{clipboard::Clipboard, server::Server, storage::Storage, tray::Tray};
 use anyhow::Result;
+use std::sync::mpsc::Sender;
 use winit::{
     application::ApplicationHandler,
     event::{StartCause, WindowEvent},
@@ -33,6 +34,9 @@ struct Clipclip {
 enum UserEvent {
     Exit,
     SaveClip(String),
+    RecvClip(String),
+    SendClip(Sender<Result<String>>),
+    UpdateAddr(String),
 }
 
 impl Clipclip {
@@ -51,11 +55,37 @@ impl Clipclip {
     }
 
     fn handle_save_clip(&mut self, clip: String) {
-        if let Some(storage) = &mut self.storage {
-            if let Err(_) = storage.save_clip(clip) {
-                // TODO(Log Err)
-            }
+        let storage = self
+            .storage
+            .as_mut()
+            .expect("Storage has not been initialized");
+        if let Err(_) = storage.save_clip(clip) {
+            // TODO(Log Err)
         }
+    }
+
+    fn handle_recv_clip(&self, clip: String) {
+        let clipboard = self
+            .clipboard
+            .as_ref()
+            .expect("Clipboard has not been initialized");
+        if let Err(_) = clipboard.set_clip(clip) {
+            // TODO(Log Err)
+        }
+    }
+
+    fn handle_send_clip(&self, sender: Sender<Result<String>>) {
+        let clipboard = self
+            .clipboard
+            .as_ref()
+            .expect("Clipboard has not been initialized");
+        if let Err(_) = sender.send(clipboard.get_clip()) {
+            // TODO(Log Err)
+        }
+    }
+
+    fn handle_update_addr(&self, addr: String) {
+        println!("handle_update_addr: {}", addr);
     }
 }
 
@@ -82,6 +112,10 @@ impl ApplicationHandler<UserEvent> for Clipclip {
 
             let storage = Storage::new();
             self.storage = Some(storage);
+
+            let mut server = Server::new();
+            server.start_listening_request(self.proxy.clone());
+            self.server = Some(server);
         }
     }
 
@@ -89,6 +123,9 @@ impl ApplicationHandler<UserEvent> for Clipclip {
         match event {
             UserEvent::Exit => Clipclip::handle_exit(event_loop),
             UserEvent::SaveClip(clip) => self.handle_save_clip(clip),
+            UserEvent::RecvClip(clip) => self.handle_recv_clip(clip),
+            UserEvent::SendClip(sender) => self.handle_send_clip(sender),
+            UserEvent::UpdateAddr(addr) => self.handle_update_addr(addr),
         };
     }
 }
